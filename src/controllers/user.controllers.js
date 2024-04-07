@@ -3,6 +3,7 @@ import { User } from "../models/user.model.js";
 import { ApiError } from "../utils/ApiError.js"
 import { uploadOnCloudinary } from "../utils/cloudinary.js"
 import { ApiRespone } from "../utils/ApiResponse.js"
+import { generateAccessTokenAndRefreshToken } from "../utils/genAccessAndRefresh.js";
 
 const registerUser = asyncHandler( async (req,res) => {
 
@@ -107,4 +108,115 @@ const registerUser = asyncHandler( async (req,res) => {
 
 } )
 
-export {registerUser}
+const loginUser = asyncHandler ( async (req,res) => {
+
+     //  steps to follow for login user :-
+
+    // (1) req.body => data
+    // (2) userName or email
+    // (3) find user
+    // (4) password validation
+    // (5) accessToken and refreshToken
+    // (6) send cookie
+
+    // req.body => data
+    const {userName,email,password} = req.body
+
+
+    // userName or email
+    if(!(userName || email)) {
+        throw new ApiError(400, "username or email is required")
+    }
+
+
+    // find user
+    const user = await User.findOne({
+        $or : [{userName},{email}]
+    })
+    if(!user){
+        throw new ApiError(404, "user does not exist")
+    }
+
+    // password validation
+    const isPasswordValid = await user.isPasswordCorrect(password)
+
+    if(!isPasswordValid){
+        throw new ApiError(404, "Invalid user credentials")
+    }
+
+
+    // accessToken and refreshToken ni aapde jarur pasde to function banavi laiye.. 
+    const {accessToken, refreshToken} = await generateAccessTokenAndRefreshToken(user._id);
+
+
+    // send cookie 
+
+    // what respone data send ?
+    const loggedInUser = await User.findById(user._id).select("-password -refreshToken")  
+
+    // cookie options
+    const options = {
+        httpOnly : true,
+        secure : true
+    }
+
+    return res
+    .status(200)
+    .cookie("accessToken", accessToken,options)
+    .cookie("refreshToken", refreshToken, options)
+    .json(
+        new ApiRespone(
+            200,
+            {
+                user : loggedInUser, accessToken, refreshToken
+            },
+            "user logged in successfully"
+        )
+    )
+})
+
+const logoutUser = asyncHandler (async (req,res) => {
+
+    // logout step to follow :-
+
+    // (1) cookie's remove karvi pade
+    // (2) db mathi accessToken and refreshToken pan reset karva pade 
+
+    // logout time par aapde pase user ne kai rite find karvo bcz we don't access for any _id or anything have logout time par form to na baravay ke email and user name aapo.. to ae koi pan nu email nakhi logout karavi nakhe..
+    // => like User.findById(_id)
+
+    // aetle aapde use kari middleware (Jate se pehle milke jana !!)
+    // ../middlewares/auth.middleware.js
+
+
+    await User.findByIdAndUpdate(
+        req.user._id,
+        {
+            $set:{
+                refreshToken : undefined
+            }
+        },
+        {
+            new : true
+        }
+    )
+
+    const options = {
+        httpOnly : true,
+        secure : true
+    }
+
+    return res
+    .status(200)
+    .clearCookie("accessToken", options)
+    .clearCookie("refreshToken", options)
+    .json(new ApiRespone(200, {}," user logged out !!"))
+
+})
+
+export {
+    registerUser, 
+    loginUser,
+    logoutUser
+
+}

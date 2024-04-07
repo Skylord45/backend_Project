@@ -3,7 +3,8 @@ import { asyncHandler } from "../utils/asyncHandler";
 import jwt from "jsonwebtoken";
 import { User } from "../models/user.model.js";
 
-
+// jya req, and next use thay pan res use no thay tyare _ kari nakhvu. like
+// export const verifyJWT = asyncHandler( async (req,_,next) => {
 export const verifyJWT = asyncHandler( async (req,res,next) => {
    try {
     const token = req.cookies?.accessToken || req.header("Authorization")?.replace("Bearer ","")
