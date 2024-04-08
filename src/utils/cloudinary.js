@@ -19,11 +19,12 @@ const uploadOnCloudinary = async (localFilePath) => {
     console.log("filr upload succesfully on cloudinary", response.url);
     // for user we return response what he needed he can get from response
    
-    fs.unlinkSync(localFilePath);
+    fs.unlinkSync( localFilePath );   // we can remove from locally saved
+
     return response;
 
   } catch (error) {
-      fs.unlinkSync(localFilePath); // we can remove from locally saved 
+      fs.unlinkSync( localFilePath ); // we can remove from locally saved 
       return null;
   }
 }
