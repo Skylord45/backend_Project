@@ -298,10 +298,162 @@ const refreshAccessToken = asyncHandler(async(req, res) => {
     }
 })
 
+
+// change user password..
+// (1) get old and new password from req.body
+// (2) auth-middleware banavu j che aemathi req.user pase thi id lai sakay
+// (3) old password and db password ne compare
+// (4) add newPassword in user object
+
+
+// think about it :-
+// oldPassword aape che to aema thi id find kari sakay ?
+// no bcz different user can be same password.. 
+
+const changeUserPassword = asyncHandler( async (req, res) => {
+    const {oldPassword, newPassword} = req.body
+
+    const user = await User.findById(req.user?._id)
+    const isPasswordCorrect = await user.isPasswordCorrect(oldPassword);
+
+    if(!isPasswordCorrect){
+        throw new ApiError(400, "Invalid old password")
+    }
+
+    // set thyu password
+    user.password = newPassword
+    // save password
+    await user.save({validateBeforeSave : false})
+
+    return res
+    .status(200)
+    .json(new ApiRespone(200, {} , "password change successfully"))
+    
+})
+
+
+//  get current user
+// auth-middleware pase already req.user che to aemathi direct respone aapi sakay
+
+const getCurrentUser = asyncHandler (async (req, res) => {
+    return res
+    .status(200)
+    .json(new ApiRespone(200, req.user, "current user fetched successfully") )
+})
+
+
+const updateAccountDetails = asyncHandler( async (req, res) => {
+    const {fullName, email} = req.body
+
+    if(!(fullName || email)){
+        throw new ApiError(400, "all fields are required !!")
+    }
+
+    const user = await User.findByIdAndUpdate(
+        req.user._id,
+        {
+            $set:{
+                fullName,
+                email
+            }
+        },
+        {new : true}
+    ).select("-password")
+
+    return res
+    .status(200)
+    .json(
+        new ApiRespone(200, user, "Account details updated successfully")
+    )
+})
+
+
+
+// if we can upload file than make it in sepreate controller (avatar)
+
+// middleware nu dhyan rakhvu 1st multer(file upload)& second auth(must login)
+//  => file update. <=
+// (1) req.file mathi avatar no path levo
+// (2) cloudinary ma upload karvu
+// (3) req.user mathi id kadhi user find karvo
+// (4) user object ma avatar_ulr set karvo
+
+const updateUserAvatar = asyncHandler( async (req,res) => {
+    const avatarLocalPath = req.file?.path 
+    
+    if(!avatarLocalPath){
+        throw new ApiError(400, "Avatar file is missing")
+    }
+
+    const avatar = await uploadOnCloudinary(avatarLocalPath)
+
+    if(!avatar.url){
+        throw new ApiError(400, "Error while uploading avatar on cloudinary")
+    }
+
+    // update avatar user object
+    const user = await User.findByIdAndUpdate(
+        req.user?._id,
+        {
+          $set:{
+            avatar : avatar.url
+          }
+        },
+        {
+            new : true
+        }
+    ).select("-password")
+
+    return res
+    .status(200)
+    .json(new ApiRespone(200, user , "Avatar updated successfully"))
+})
+
+
+// update coverImage file
+const updateUserCoverImage = asyncHandler( async (req,res) => {
+
+    const coverImageLocalPath = req.file?.path 
+    
+    if(!coverImageLocalPath){
+        throw new ApiError(400, "coverImage file is missing")
+    }
+
+    const coverImage = await uploadOnCloudinary(coverImageLocalPath)
+
+    if(!coverImage.url){
+        throw new ApiError(400, "Error while uploading coverImage on cloudinary")
+    }
+
+    // update coverImage in user object
+    const user = await User.findByIdAndUpdate(
+        req.user?._id,
+        {
+          $set:{
+            coverImage : coverImage.url
+          }
+        },
+        {
+            new : true
+        }
+    ).select("-password")
+
+    return res
+    .status(200)
+    .json(new ApiRespone(200, user , "Cover-Image updated successfully"))
+})
+
+
+
 export {
     registerUser, 
     loginUser,
     logoutUser,
     refreshAccessToken,
+    changeUserPassword,
+    getCurrentUser,
+    updateAccountDetails,
+    updateUserAvatar,
+    updateUserCoverImage,
 
 }
