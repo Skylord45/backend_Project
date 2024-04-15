@@ -5,6 +5,7 @@ import { uploadOnCloudinary } from "../utils/cloudinary.js"
 import { ApiRespone } from "../utils/ApiResponse.js"
 import { generateAccessTokenAndRefreshToken } from "../utils/genAccessAndRefresh.js";
 import jwt from "jsonwebtoken"
+import { removeFromCloudinary } from "../utils/removeFileOnCloudinary.js";
 
 const registerUser = asyncHandler( async (req,res) => {
 
@@ -425,6 +426,21 @@ const updateUserCoverImage = asyncHandler( async (req,res) => {
         throw new ApiError(400, "Error while uploading coverImage on cloudinary")
     }
 
+    // remove old file from cloudinary ( => check this code <=)
+
+    // req.user?.coverImage.url ni jarar nathi bcz db ma aapde only cloudinary file path no url j save kariyo che 
+    
+    const oldFileCloudinaryURL = User.findOne(req.user?.coverImage)
+    console.log(oldFileCloudinaryURL)
+
+    if(!oldFileCloudinaryURL){
+        throw new ApiError(500, "old file cannot remove from cloudinary")
+    }
+
+    await removeFromCloudinary(oldFileCloudinaryURL);
+
+    console.log("romove old file from cloudinary successfully");
+
     // update coverImage in user object
     const user = await User.findByIdAndUpdate(
         req.user?._id,
@@ -443,6 +459,116 @@ const updateUserCoverImage = asyncHandler( async (req,res) => {
     .json(new ApiRespone(200, user , "Cover-Image updated successfully"))
 })
 
+// TODO : 
+// after update remove old files in cludinary
+
+
+// models chart ma subscription ne aapde join karsu user sath (left join) using aggerigation pipe line.. 
+
+/*
+$match
+$lookup
+$addFiels
+$first
+$arrayElementAt = [ "$__________", 0 ]
+*/
+
+
+
+/*
+channel na kelta subscriber aee aapde channel na document mathi count kari sakiye.
+
+ae particular channel ae ketli biji channel ne subscrib kari che aema mat subscriber na documnet mathi count kari sakay
+*/
+
+
+
+
+// step to follow :-
+// (1) data url mathi aavse to user name mate req.params
+// (2) find username in db
+
+const getUserChannelProfile = asyncHandler(async (req, res) => {
+    const {userName} = req.params
+    if(!userName?.trim()){
+        throw new ApiError(400, "username is missing !!")
+    }
+
+    // have aapdi pase username che to User.find({username}) thi id find kari sakay
+    // but aapdi pase aggrigation ma $match che aena thi db call bachvi sakay
+
+    const channel = await User.aggregate([
+        {
+            $match:{
+                userName : userName?.toLowerCase()
+            }
+        },
+        {
+            $lookup:{
+                // Subscriber count from channel
+                from : "subscriptions",
+                localField : "_id",
+                foreignField : "channel",
+                as : "subscribers"
+            }
+        },
+        {
+            $lookup:{
+                // count of channel which is subscrib by this user
+                from : "subscriptions",
+                localField : "_id",
+                foreignField : "subscriber",
+                as : "subscribedTo" 
+            }
+        },
+        {
+            $addFields:{
+                subscribersCount :{
+                    $size : "$subscribers"
+                },
+                channelsSubsCount :{
+                    $size : "subscribedTo"
+                },
+ // jo channel ne subscribe kareli hoy to tya subscribed lakhel hoy else subscribe lakhel hoy..to aapde frontend vala ne aeno true or false no message aapi daisu 
+                isSubscribed : {
+                    $cond : {
+                        if: { $in : [req.user?._id, "$subscribers.subscriber"]},
+                        then : true,
+                        else : false
+                    }
+                }
+            }
+        },
+        {
+            // kai field aapvi che ae mate 
+            $project:{
+                userName : 1,
+                subscribersCount : 1,
+                channelsSubsCount : 1,
+                isSubscribed : 1,
+                avatar : 1,
+                coverImage : 1
+            }
+        }
+    ])
+
+    if(!channel?.length){
+        throw new ApiError(404, "channel does not exist")
+    }
+
+    // channel aapne data [ {}, {} , {} ] aa form ma aape
+    // aaya aapdi pase ak j field hase [{}] to array ni first value j ans hase
+    
+    // badhi vakhte khabar padvi joi ke kya type no data aave che like
+    // [{},{},{}] ke aa form [{}] ma
+
+    return res
+    .status(200)
+    .json(
+        new ApiRespone(200, channel[0],"User channel fatched successfully")
+    )
+})
+
 
 
 export {
@@ -455,5 +581,6 @@ export {
     updateAccountDetails,
     updateUserAvatar,
     updateUserCoverImage,
+    getUserChannelProfile,
 
 }
