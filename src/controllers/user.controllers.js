@@ -6,6 +6,7 @@ import { ApiRespone } from "../utils/ApiResponse.js"
 import { generateAccessTokenAndRefreshToken } from "../utils/genAccessAndRefresh.js";
 import jwt from "jsonwebtoken"
 import { removeFromCloudinary } from "../utils/removeFileOnCloudinary.js";
+import mongoose from "mongoose";
 
 const registerUser = asyncHandler( async (req,res) => {
 
@@ -540,7 +541,7 @@ const getUserChannelProfile = asyncHandler(async (req, res) => {
             }
         },
         {
-            // kai field aapvi che ae mate 
+            // kai field aapvi che front-End ne ae mate 
             $project:{
                 userName : 1,
                 subscribersCount : 1,
@@ -559,8 +560,12 @@ const getUserChannelProfile = asyncHandler(async (req, res) => {
     // channel aapne data [ {}, {} , {} ] aa form ma aape
     // aaya aapdi pase ak j field hase [{}] to array ni first value j ans hase
     
-    // badhi vakhte khabar padvi joi ke kya type no data aave che like
+    // => badhi vakhte khabar padvi joi ke kya type no data aave che like
     // [{},{},{}] ke aa form [{}] ma
+    // like [{},{},{}] na first object return karvo
+    // and [{}] ma ak j hovathi koi jarur nathi
+
+
 
     return res
     .status(200)
@@ -570,6 +575,63 @@ const getUserChannelProfile = asyncHandler(async (req, res) => {
 })
 
 
+const getWatchHistory = asyncHandler( async(req,res) => {
+    // req.user._id => string male id nathi malti mongoDB ni
+    // pan mongoose aapda mate automatic string mathi id ma convert kari nakhe
+    // but mongoose aggrigation pipeline ma na kari sake than how we match id
+
+    const user = await User.aggregate([
+        {
+            $match:{
+                _id: new mongoose.Types.ObjectId(req.user._id)
+            }
+        },
+        {
+            $lookup : {
+                from: "videos",
+                localField: "watchHistory",
+                foreignField: "_id",
+                as : "watchHistory",
+                    pipeline : [
+                        {
+                            $lookup : {
+                                from : "users",
+                                localField : "owner",
+                                foreignField : "_id",
+                                as : "owner",
+                                   pipeline: [
+                                        {
+                                            $project : {
+                                                userName : 1,
+                                                fullName : 1,
+                                                avatar : 1 
+                                            }
+                                        }
+                                   ]
+                            }
+                        },
+                        {
+                            $addFields : {
+                                owner : {
+                                    $first : "$owner"
+                                }
+                            }
+                        }
+                  ]
+            }         
+        }
+    ])
+
+    return res
+    .status(200)
+    .json(
+        new ApiRespone(
+            200, 
+            user[0].watchHistory, 
+            "user's watch history fetched successfully"
+        )
+    )
+})
 
 export {
     registerUser, 
@@ -582,5 +644,6 @@ export {
     updateUserAvatar,
     updateUserCoverImage,
     getUserChannelProfile,
+    getWatchHistory,
 
 }
