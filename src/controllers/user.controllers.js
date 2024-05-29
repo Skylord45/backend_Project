@@ -8,6 +8,7 @@ import jwt from "jsonwebtoken"
 import { removeFromCloudinary } from "../utils/removeFileOnCloudinary.js";
 import mongoose from "mongoose";
 
+
 const registerUser = asyncHandler( async (req,res) => {
 
     //  steps to follow for register controller :-
